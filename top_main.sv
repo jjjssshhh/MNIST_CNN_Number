@@ -102,6 +102,13 @@ module top_main(
     wire [9:0] touch_wr_addr = ({5'b0, grid_y_touch} * 10'd28)
                              + {5'b0, grid_x_touch_flip};
 
+    // Get_Flag 2-FF 동기화 + 상승 에지 검출 (50MHz → 100MHz 도메인)
+    // 매 클럭 쓰기 → 샘플링 완료 시에만 쓰기로 변경 (노이즈 픽셀 감소)
+    reg [1:0] get_flag_sync = 0;
+    always @(posedge clk)
+        get_flag_sync <= {get_flag_sync[0], Get_Flag};
+    wire get_flag_pedge = (get_flag_sync == 2'b01);
+
     always @(posedge clk) begin
         if (reset_p || btnC_pedge) begin
             clear_cnt <= 0;
@@ -110,7 +117,7 @@ module top_main(
             draw_bram[clear_cnt] <= 8'h00;
             if (clear_cnt == 783) clearing <= 0;
             else                  clear_cnt <= clear_cnt + 1;
-        end else if (~PenIrq_n && in_box_touch && !inferring) begin
+        end else if (get_flag_pedge && ~PenIrq_n && in_box_touch && !inferring) begin
              draw_bram[touch_wr_addr] <= 8'hFF;
         end
     end
